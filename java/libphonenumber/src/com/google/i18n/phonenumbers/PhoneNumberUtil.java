@@ -16,6 +16,23 @@
 
 package com.google.i18n.phonenumbers;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import com.google.i18n.phonenumbers.Phonemetadata.NumberFormat;
 import com.google.i18n.phonenumbers.Phonemetadata.PhoneMetadata;
 import com.google.i18n.phonenumbers.Phonemetadata.PhoneNumberDesc;
@@ -24,22 +41,6 @@ import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber.CountryCodeSource;
 import com.google.i18n.phonenumbers.internal.MatcherApi;
 import com.google.i18n.phonenumbers.internal.RegexBasedMatcher;
 import com.google.i18n.phonenumbers.internal.RegexCache;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Utility for international phone numbers. Functionality includes formatting, parsing and
@@ -3500,4 +3501,268 @@ public class PhoneNumberUtil {
     }
     return metadata.isMobileNumberPortableRegion();
   }
+
+  /**
+   * Generate report with metadata for each supported country
+   * @param args
+   * @throws NumberParseException
+   */
+  public static void main(String [] args) throws NumberParseException {
+
+    PhoneNumberUtil util = PhoneNumberUtil.getInstance();
+
+    System.out.print(
+            "Country;" +
+                    "ISO;" +
+                    "Code;" +
+                    "National Prefix;" +
+                    "Leading Digits;" +
+                    "Length Fixed Line;" +
+                    "Length Fixed Line (Nat);" +
+                    "Length Mobile;" +
+                    "Length Mobile (Nat);" +
+                    "Length General;" +
+                    "Length General (Nat);" +
+                    "Sample Fixed Line Int.;" +
+                    "Sample Fixed Line Nat.;" +
+                    "Length GeoAreaCode;" +
+                    "Length NatDestCode;" +
+                    "Detect Area Code (No Trunk prefix);" +
+                    "Detect Area Code (With Trunk prefix);" +
+                    "Detect Phonenumber;" +
+                    "Sample Mobile Int.;" +
+                    "Sample Mobile Nat.;" +
+                    "Length GeoAreaCode;" +
+                    "Length NatDestCode;" +
+                    "Detect Area Code (No Trunk prefix);" +
+                    "Detect Area Code (With Trunk prefix);" +
+                    "Detect Phonenumber;" +
+                    "Pattern Fixed Line;" +
+                    "Pattern Mobile\n");
+
+    for (String region: util.getSupportedRegions()){
+
+      //Country
+      System.out.print(new Locale("", region).getDisplayCountry() + ";");
+
+      //ISO
+      System.out.print(region + ";");
+
+      //Code
+      System.out.print("+" + util.getCountryCodeForRegion(region) + ";");
+
+      PhoneMetadata pm = util.getMetadataForRegion(region);
+
+      // National Prefix
+      if (pm.hasNationalPrefix())
+        System.out.print(pm.getNationalPrefix());
+      System.out.print(";");
+
+      // Leading Digits
+      if (pm.hasLeadingDigits()) {
+        System.out.print(pm.getLeadingDigits());
+        /*if (pm.hasLeadingZeroPossible()) {
+          System.out.print(" Lead Zero possible");
+        }*/
+      }
+      System.out.print(";");
+
+      // length fixed
+      if (pm.hasFixedLine() && (pm.getFixedLine().getPossibleLengthCount() > 0)) {
+        PhoneNumberDesc pnd = pm.getFixedLine();
+        System.out.print(formatRanges(pnd.getPossibleLengthList()) + ";");
+        if (pnd.getPossibleLengthLocalOnlyCount() > 0) {
+          System.out.print(formatRanges(pnd.getPossibleLengthLocalOnlyList()));
+        }
+        System.out.print(";");
+      } else {
+        System.out.print(";;");
+      }
+
+      // length mobile
+      if (pm.hasMobile() && (pm.getMobile().getPossibleLengthCount() > 0)) {
+        PhoneNumberDesc pnd = pm.getMobile();
+        System.out.print(formatRanges(pnd.getPossibleLengthList()) + ";");
+        if (pnd.getPossibleLengthLocalOnlyCount() > 0) {
+          System.out.print(formatRanges(pnd.getPossibleLengthLocalOnlyList()));
+        }
+        System.out.print(";");
+      } else {
+        System.out.print(";;");
+      }
+
+      // length general
+      if (pm.hasGeneralDesc() && (pm.getGeneralDesc().getPossibleLengthCount() > 0)) {
+        PhoneNumberDesc pnd = pm.getGeneralDesc();
+        System.out.print(formatRanges(pnd.getPossibleLengthList()) + ";");
+        if (pnd.getPossibleLengthLocalOnlyCount() > 0) {
+          System.out.print(formatRanges(pnd.getPossibleLengthLocalOnlyList()));
+        }
+        System.out.print(";");
+      } else {
+        System.out.print(";;");
+      }
+
+      // SAMPLE NUMBERS
+      if (pm.getFixedLine().hasExampleNumber()) {
+        String numberStr = pm.getFixedLine().getExampleNumber();
+        PhoneNumber number = util.parse(numberStr, region);
+        System.out.print(util.format(number, PhoneNumberFormat.INTERNATIONAL) + ";");
+        System.out.print(util.format(number, PhoneNumberFormat.NATIONAL) + ";");
+
+        System.out.print(util.getLengthOfGeographicalAreaCode(number) + ";");
+        System.out.print(util.getLengthOfNationalDestinationCode(number) + ";");
+
+        System.out.print(splitPhoneNumber(numberStr, region, false).getAreaCode() + ";");
+        XPhoneNumber xNumber = splitPhoneNumber(numberStr, region, true);
+        System.out.print(xNumber.getAreaCode() + ";");
+        System.out.print(xNumber.getPhoneNumber() + ";");
+
+      } else {
+        System.out.print(";;;;;;;");
+      }
+
+      if (pm.getMobile().hasExampleNumber()) {
+        String numberStr = pm.getMobile().getExampleNumber();
+        PhoneNumber number = util.parse(numberStr, region);
+
+        System.out.print(util.format(number, PhoneNumberFormat.INTERNATIONAL) + ";");
+        System.out.print(util.format(number, PhoneNumberFormat.NATIONAL) + ";");
+
+        System.out.print(util.getLengthOfGeographicalAreaCode(number) + ";");
+        System.out.print(util.getLengthOfNationalDestinationCode(number) + ";");
+
+        System.out.print(splitPhoneNumber(numberStr, region, false).getAreaCode() + ";");
+        XPhoneNumber xNumber = splitPhoneNumber(numberStr, region, true);
+        System.out.print(xNumber.getAreaCode() + ";");
+        System.out.print(xNumber.getPhoneNumber() + ";");
+
+      } else {
+        System.out.print(";;;;;;;");
+      }
+
+      //System.out.print(", Nat Prefix For Parsing: " + pm.getNationalPrefixForParsing());
+      //System.out.print(", Int Prefix: " + pm.getInternationalPrefix());
+      /*if (pm.getGeneralDesc().getNationalNumberPattern().equals(pm.getFixedLine().getNationalNumberPattern())){
+        System.out.print(" GEN-FIXED-MATCH");
+      }*/
+
+      System.out.print("" +pm.getFixedLine().getNationalNumberPattern());
+      System.out.print(";" +pm.getMobile().getNationalNumberPattern());
+
+      // New Line
+      System.out.println();
+    }
+  }
+
+  private static String formatRanges(List<Integer> input){
+
+    SortedSet<Integer> numbers = new TreeSet<Integer>(input);
+
+    Integer start = null;
+    Integer end = null;
+
+    StringBuilder sb = new StringBuilder();
+
+    for( Integer num : numbers ) {
+      //initialize
+      if( start == null || end == null ) {
+        start = num;
+        end = num;
+      }
+      //next number in range
+      else if( end.equals( num - 1 ) ) {
+        end = num;
+      }
+      //there's a gap
+      else  {
+        //range length 1
+        if( start.equals( end )) {
+          sb.append(start + ",");
+        }
+        //range length 2
+        else if ( start.equals( end - 1 )) {
+          sb.append(start + "," + end + ",");
+        }
+        //range lenth 2+
+        else {
+          sb.append(start + "-" + end + ",");
+        }
+
+        start = num;
+        end = num;
+      }
+    }
+
+    if( start.equals( end )) {
+      sb.append(start);
+    }
+    else if ( start.equals( end - 1 )) {
+      sb.append(start + "," + end );
+    }
+    else {
+      sb.append(start + "-" + end);
+    }
+
+    return sb.toString();
+  }
+
+  private static XPhoneNumber splitPhoneNumber(final String number, final String defaultRegion, final boolean includeTrunkPrefix) {
+    final String areaCode;
+    final String phoneNumber;
+    final PhoneNumberUtil phoneUtil = PhoneNumberUtil.getInstance();
+    final Phonenumber.PhoneNumber parsedNumber = parsePhoneNumber(number, defaultRegion);
+    if (parsedNumber != null && (phoneUtil.isValidNumber(parsedNumber)
+            || (phoneUtil.isPossibleNumber(parsedNumber) && phoneUtil.getLengthOfNationalDestinationCode(parsedNumber) > 0 ))) {
+      final int nationalDestinationCodeLength = phoneUtil.getLengthOfNationalDestinationCode(parsedNumber);
+      final String nationalSignificantNumber = phoneUtil.getNationalSignificantNumber(parsedNumber);
+      phoneNumber = nationalSignificantNumber.substring(nationalDestinationCodeLength);
+      if (includeTrunkPrefix) {
+        // in some countries like Sweden getLengthOfNationalDestinationCode
+        // doesn't return the correct number.
+        // +4640111111 the area code is 040
+        // the following code restores the initial missing zero
+        final String formattedNationalNumber = phoneUtil.format(parsedNumber, PhoneNumberUtil.PhoneNumberFormat.NATIONAL);
+        final String plainNationalNumberFormatPlain = formattedNationalNumber.replaceAll("[^0-9]", "");
+        areaCode = plainNationalNumberFormatPlain.substring(0, plainNationalNumberFormatPlain.length() - phoneNumber.length());
+      } else {
+        areaCode = nationalSignificantNumber.substring(0, nationalDestinationCodeLength);
+      }
+    }
+    else {
+      areaCode = "";
+      phoneNumber = number != null ? number : "";
+    }
+    return new XPhoneNumber(areaCode, phoneNumber);
+  }
+
+  private static Phonenumber.PhoneNumber parsePhoneNumber(final String num, final String region) {
+    final PhoneNumberUtil phoneUtil = PhoneNumberUtil.getInstance();
+    try {
+      final Phonenumber.PhoneNumber phoneNumber = phoneUtil.parse(num, region);
+      return phoneNumber;
+    }
+    catch (NumberParseException e) {
+      return null;
+    }
+  }
+
+  private static class XPhoneNumber {
+    private final String areaCode;
+    private final String phoneNumber;
+
+    XPhoneNumber(String areaCode, String phoneNumber) {
+      this.areaCode = areaCode;
+      this.phoneNumber = phoneNumber;
+    }
+
+    public String getAreaCode() {
+      return this.areaCode;
+    }
+
+    public String getPhoneNumber() {
+      return this.phoneNumber;
+    }
+  }
+
 }
